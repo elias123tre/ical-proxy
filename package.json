@@ -1,0 +1,17 @@
+{
+  "name": "icalworker",
+  "version": "0.0.0",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^3.4.0",
+    "typescript": "^4.5.5",
+    "wrangler": "0.0.17"
+  },
+  "private": true,
+  "scripts": {
+    "start": "wrangler dev src/index.ts",
+    "deploy": "wrangler publish src/index.ts"
+  },
+  "dependencies": {
+    "@cloudflare/kv-asset-handler": "^0.2.0"
+  }
+}
