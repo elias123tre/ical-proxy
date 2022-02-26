@@ -1,17 +1,18 @@
 {
-  "name": "icalworker",
+  "name": "icalproxy",
   "version": "0.0.0",
-  "devDependencies": {
-    "@cloudflare/workers-types": "^3.4.0",
-    "typescript": "^4.5.5",
-    "wrangler": "0.0.17"
-  },
   "private": true,
   "scripts": {
     "start": "wrangler dev src/index.ts",
+    "tailwind": "tailwindcss -o ./public/main.css --watch",
     "deploy": "wrangler publish src/index.ts"
   },
-  "dependencies": {
-    "@cloudflare/kv-asset-handler": "^0.2.0"
+  "devDependencies": {
+    "@cloudflare/workers-types": "^3.4.0",
+    "@tailwindcss/typography": "^0.5.2",
+    "concurrently": "^7.0.0",
+    "tailwindcss": "^3.0.23",
+    "typescript": "^4.5.5",
+    "wrangler": "0.0.17"
   }
 }

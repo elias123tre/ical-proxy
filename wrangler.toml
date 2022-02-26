@@ -1,5 +1,5 @@
 type = "typescript"
-name = "icalworker"
+name = "icalproxy"
 compatibility_date = "2022-02-23"
 account_id = "8cb9b7b2abc294c9b9c47e84aff48ab1"
 

@@ -1,38 +1,43 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `wrangler dev src/index.ts` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `wrangler publish src/index.ts --name my-worker` to deploy your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import page from "./page"
 
 const headers = { "content-type": "text/html" }
 
-const html = (s: TemplateStringsArray, ...args: any[]) => {
-  return s.map((ss, i) => `${ss}${args?.[i] ?? ""}`).join("")
-}
-
-const page = html`
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="utf-8" />
-      <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-      <title>Page Title</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <link rel="stylesheet" type="text/css" media="screen" href="main.css" />
-    </head>
-    <body>
-      <div class="">Lorem ipsum ${JSON.stringify([{ test: 123 }, {}])}</div>
-    </body>
-  </html>
-`
-
 export default {
-  async fetch(request: Request): Promise<Response> {
-    console.log(CALENDAR.list())
-    return new Response(page, { headers })
+  async fetch(
+    request: Request,
+    { CALENDAR }: { CALENDAR: KVNamespace }
+  ): Promise<Response> {
+    let rule: Rule = {
+      title: "Example rule",
+      type: "show",
+      enabled: true,
+      filters: [
+        {
+          property: "summary",
+          regex: "Algoritmer och datastrukturer",
+          negated: false,
+        },
+      ],
+      combine: "AND",
+    }
+    await CALENDAR.put("rules", JSON.stringify([rule, rule]))
+    let rules: Rule[] = await CALENDAR.get("rules", "json")
+
+    const url = new URL(request.url)
+    switch (url.pathname) {
+      case "/calendar.ics":
+        return new Response("calendar", {
+          headers: {
+            ...headers,
+            "content-type": "text/calendar; charset=utf-8",
+            "content-disposition": "attachment; filename=personal.ics",
+            filename: "personal.ics",
+            "cache-control": "max-age=10800, private",
+          },
+        })
+
+      default:
+        return new Response(page(rules), { headers })
+    }
   },
 }
