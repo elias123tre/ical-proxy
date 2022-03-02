@@ -4,15 +4,17 @@
     "module": "es2022",
     "moduleResolution": "node",
     "allowJs": true,
+    "checkJs": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
     "noEmit": true,
     "lib": [
-      "es2021"
+      "es2021",
     ],
     "resolveJsonModule": true,
     "types": [
-      "@cloudflare/workers-types"
+      "@cloudflare/workers-types",
+      "node"
     ]
   }
 }

@@ -1,4 +1,7 @@
 import page from "./page"
+import { html } from "./util"
+import ICAL from "ical.js"
+import template from "./template"
 
 const headers = { "content-type": "text/html" }
 
@@ -26,7 +29,26 @@ export default {
     const url = new URL(request.url)
     switch (url.pathname) {
       case "/calendar.ics":
-        return new Response("calendar", {
+        const calendar_url =
+          "https://www.kth.se/social/user/285053/icalendar/c97a29275393ef6283721a8efa246741174e8f91"
+        const calendar = await (await fetch(calendar_url)).text()
+        let jCalData = ICAL.parse(calendar)
+        const comp = new ICAL.Component(jCalData)
+        comp.updatePropertyWithValue(
+          "url",
+          "https://ical.elias1233.workers.dev"
+        )
+        const events = comp
+          .getAllSubcomponents("vevent")
+          .map((e) => new ICAL.Event(e))
+          // TODO: Proper filter from KV store
+          .filter((e) => !e.summary.startsWith("Föreläsning"))
+        comp.removeAllSubcomponents("vevent")
+        for (const event of events) {
+          comp.addSubcomponent(event.component)
+        }
+
+        return new Response(comp.toString(), {
           headers: {
             ...headers,
             "content-type": "text/calendar; charset=utf-8",
