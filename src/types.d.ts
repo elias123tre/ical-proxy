@@ -7,7 +7,7 @@ interface Rule {
 }
 
 interface Filter {
-  property: "summary" | "description" | "date" | "id"
+  property: "summary" | "description" | "date"
   regex: string
   negated: boolean
 }

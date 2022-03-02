@@ -1,65 +1,88 @@
-import page from "./page"
-import { html } from "./util"
-import ICAL from "ical.js"
-import template from "./template"
+import { Router } from "itty-router"
+
+import { filter_calendar } from "./util"
+import preview from "./preview"
+import homepage from "./homepage"
 
 const headers = { "content-type": "text/html" }
+const router = Router()
+
+router.get("/", async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
+  let rules: Rule[] = await CALENDAR.get("rules", "json")
+  return new Response(homepage(rules), { headers })
+})
+
+router.get("/preview", async (req) => new Response(preview(), { headers }))
+
+router.get(
+  "/calendar.ics",
+  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
+    let rules: Rule[] = await CALENDAR.get("rules", "json")
+    // filter to only enabled rules
+    rules = rules.filter((rule) => rule.enabled)
+    // sort such that show rules are handled first
+    rules.sort((a, b) => {
+      if (a.type == b.type) {
+        return 0
+      }
+      // show should come first
+      if (a.type == "show" && b.type == "hide") {
+        return -1
+      }
+      // hide should come last
+      if (a.type == "hide" && b.type == "show") {
+        return 1
+      }
+    })
+    console.log(JSON.stringify(rules, null, 2))
+
+    const comp = await filter_calendar(
+      "https://www.kth.se/social/user/285053/icalendar/c97a29275393ef6283721a8efa246741174e8f91",
+      // TODO: Proper filter from KV store
+      (event) =>
+        // whether to keep event or not: if rule is not matched
+        !rules
+          // if any rule matches
+          .some((rule) => {
+            // if all filters match
+            let allMatches = rule.filters.every((filter) => {
+              // if matches filter regex rule
+              let matches = RegExp(filter.regex).test(event[filter.property])
+              return filter.negated ? !matches : matches
+            })
+
+            if (rule.type == "show") {
+              // should force-keep filter matches ->
+            } else if (rule.type == "hide") {
+              // should filter out filter matches
+            }
+            // default: no match (keep event)
+            return false
+          })
+    )
+
+    return new Response(comp.toString(), {
+      headers: {
+        ...headers,
+        "content-type": "text/calendar; charset=utf-8",
+        "content-disposition": "attachment; filename=personal.ics",
+        filename: "personal.ics",
+        "cache-control": "max-age=10800, private",
+      },
+    })
+  }
+)
+
+router.post(
+  "/update/:id",
+  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
+    await CALENDAR.put("rules", JSON.stringify([]))
+    return new Response("updated!", { headers })
+  }
+)
+
+router.all("*", () => new Response("Not Found.", { status: 404, headers }))
 
 export default {
-  async fetch(
-    request: Request,
-    { CALENDAR }: { CALENDAR: KVNamespace }
-  ): Promise<Response> {
-    let rule: Rule = {
-      title: "Example rule",
-      type: "show",
-      enabled: true,
-      filters: [
-        {
-          property: "summary",
-          regex: "Algoritmer och datastrukturer",
-          negated: false,
-        },
-      ],
-      combine: "AND",
-    }
-    await CALENDAR.put("rules", JSON.stringify([rule, rule]))
-    let rules: Rule[] = await CALENDAR.get("rules", "json")
-
-    const url = new URL(request.url)
-    switch (url.pathname) {
-      case "/calendar.ics":
-        const calendar_url =
-          "https://www.kth.se/social/user/285053/icalendar/c97a29275393ef6283721a8efa246741174e8f91"
-        const calendar = await (await fetch(calendar_url)).text()
-        let jCalData = ICAL.parse(calendar)
-        const comp = new ICAL.Component(jCalData)
-        comp.updatePropertyWithValue(
-          "url",
-          "https://ical.elias1233.workers.dev"
-        )
-        const events = comp
-          .getAllSubcomponents("vevent")
-          .map((e) => new ICAL.Event(e))
-          // TODO: Proper filter from KV store
-          .filter((e) => !e.summary.startsWith("Föreläsning"))
-        comp.removeAllSubcomponents("vevent")
-        for (const event of events) {
-          comp.addSubcomponent(event.component)
-        }
-
-        return new Response(comp.toString(), {
-          headers: {
-            ...headers,
-            "content-type": "text/calendar; charset=utf-8",
-            "content-disposition": "attachment; filename=personal.ics",
-            filename: "personal.ics",
-            "cache-control": "max-age=10800, private",
-          },
-        })
-
-      default:
-        return new Response(page(rules), { headers })
-    }
-  },
+  fetch: router.handle,
 }
