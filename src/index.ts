@@ -1,23 +1,24 @@
 import { Router } from "itty-router"
 
-import { filter_calendar } from "./util"
-import preview from "./preview"
-import homepage from "./homepage"
+import { filterCalendar, filterEvent, isRule } from "./util"
 
-const headers = { "content-type": "text/html" }
+const headers = {
+  "content-type": "application/json;charset=UTF-8",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
+  "Access-Control-Max-Age": "86400",
+}
 const router = Router()
 
-router.get("/", async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
-  let rules: Rule[] = await CALENDAR.get("rules", "json")
-  return new Response(homepage(rules), { headers })
-})
-
-router.get("/preview", async (req) => new Response(preview(), { headers }))
-
 router.get(
-  "/calendar.ics",
-  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
-    let rules: Rule[] = await CALENDAR.get("rules", "json")
+  "/social/user/:user/icalendar/:icalendar",
+  async (
+    { params: { user, icalendar }, url },
+    { CALENDAR }: { CALENDAR: KVNamespace }
+  ) => {
+    let rules: Rule[] =
+      (await CALENDAR.get(`${user}/${icalendar}`, "json")) || []
+
     // filter to only enabled rules
     rules = rules.filter((rule) => rule.enabled)
     // sort such that show rules are handled first
@@ -36,29 +37,9 @@ router.get(
     })
     console.log(JSON.stringify(rules, null, 2))
 
-    const comp = await filter_calendar(
-      "https://www.kth.se/social/user/285053/icalendar/c97a29275393ef6283721a8efa246741174e8f91",
-      // TODO: Proper filter from KV store
-      (event) =>
-        // whether to keep event or not: if rule is not matched
-        !rules
-          // if any rule matches
-          .some((rule) => {
-            // if all filters match
-            let allMatches = rule.filters.every((filter) => {
-              // if matches filter regex rule
-              let matches = RegExp(filter.regex).test(event[filter.property])
-              return filter.negated ? !matches : matches
-            })
-
-            if (rule.type == "show") {
-              // should force-keep filter matches ->
-            } else if (rule.type == "hide") {
-              // should filter out filter matches
-            }
-            // default: no match (keep event)
-            return false
-          })
+    const comp = await filterCalendar(
+      `social/user/${user}/icalendar/${icalendar}`,
+      (event) => filterEvent(rules, event)
     )
 
     return new Response(comp.toString(), {
@@ -73,15 +54,65 @@ router.get(
   }
 )
 
-router.post(
-  "/update/:id",
-  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
-    await CALENDAR.put("rules", JSON.stringify([]))
-    return new Response("updated!", { headers })
+router.get(
+  "/social/user/:user/icalendar/:icalendar/rules",
+  async (
+    { params: { user, icalendar } },
+    { CALENDAR }: { CALENDAR: KVNamespace }
+  ) => {
+    let rules: Rule[] = await CALENDAR.get(`${user}/${icalendar}`, "json")
+    return new Response(JSON.stringify(rules || [], null, 2), { headers })
   }
 )
 
-router.all("*", () => new Response("Not Found.", { status: 404, headers }))
+router.post(
+  "/social/user/:user/icalendar/:icalendar/rules",
+  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
+    const {
+      params: { user, icalendar },
+    } = req
+    try {
+      const content: string = await req.text()
+      const rules: Rule[] = JSON.parse(content.trim())
+      if (rules.every((rule) => isRule(rule))) {
+        await CALENDAR.put(
+          `${user}/${icalendar}`,
+          JSON.stringify(rules, null, 2)
+        )
+        return new Response("", { headers })
+      }
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        console.error(error)
+      } else {
+        throw error
+      }
+    }
+    return new Response(
+      JSON.stringify({
+        error: "Passed json does not match format for Rule",
+      }),
+      {
+        status: 400,
+        headers,
+      }
+    )
+  }
+)
+
+router.get(
+  "/calendar.ics",
+  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {}
+)
+
+router.all(
+  "*",
+  () =>
+    new Response(JSON.stringify({ error: "Not Found" }), {
+      status: 404,
+      headers,
+    })
+)
 
 export default {
   fetch: router.handle,
