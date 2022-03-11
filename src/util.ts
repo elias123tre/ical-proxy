@@ -1,7 +1,12 @@
 import ICAL, { Component } from "ical.js"
 
 export function isRule(rule: any): rule is Rule {
-  return typeof rule === "object"
+  if (rule && typeof rule === "object") {
+    if (Object.keys(rule).length > 0) {
+      return true
+    }
+  }
+  return false
 }
 
 export function filterEvent(rules: Rule[], event: ICAL.Event) {

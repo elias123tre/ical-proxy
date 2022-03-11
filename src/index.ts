@@ -61,7 +61,9 @@ router.get(
     { CALENDAR }: { CALENDAR: KVNamespace }
   ) => {
     let rules: Rule[] = await CALENDAR.get(`${user}/${icalendar}`, "json")
-    return new Response(JSON.stringify(rules || [], null, 2), { headers })
+    return new Response(JSON.stringify(rules.filter(Boolean) || [], null, 2), {
+      headers,
+    })
   }
 )
 
@@ -73,14 +75,11 @@ router.post(
     } = req
     try {
       const content: string = await req.text()
-      const rules: Rule[] = JSON.parse(content.trim())
-      if (rules.every((rule) => isRule(rule))) {
-        await CALENDAR.put(
-          `${user}/${icalendar}`,
-          JSON.stringify(rules, null, 2)
-        )
-        return new Response("", { headers })
-      }
+      const rules: Rule[] = JSON.parse(content.trim()).filter(
+        (obj?: Rule) => isRule(obj) // is not null, undefined or object
+      )
+      await CALENDAR.put(`${user}/${icalendar}`, JSON.stringify(rules, null, 2))
+      return new Response("", { headers })
     } catch (error) {
       if (error instanceof SyntaxError) {
         console.error(error)
