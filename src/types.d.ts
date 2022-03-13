@@ -1,4 +1,5 @@
 interface Rule {
+  id: number
   title: string
   enabled: boolean
   type: "show" | "hide"

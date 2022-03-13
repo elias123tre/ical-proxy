@@ -1,4 +1,4 @@
-import { Router } from "itty-router"
+import { Router, IHTTPMethods, Request } from "itty-router"
 
 import { filterCalendar, filterEvent, isRule } from "./util"
 
@@ -8,8 +8,108 @@ const headers = {
   "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
   "Access-Control-Max-Age": "86400",
 }
-const router = Router()
+const router = Router<ExtendedRequest, IHTTPMethods>()
 
+type ExtendedRequest = Request & {
+  getRules: () => Promise<Rule[]>
+  setRules: (newRules: Rule[]) => Promise<void>
+  parseBody: () => Promise<any>
+  ParseError: Response
+}
+
+// Inject helpers on all routes
+router.all(
+  "/social/user/:user/icalendar/:icalendar*",
+  (req: ExtendedRequest, env) => {
+    const namespace = env.CALENDAR
+    const { user, icalendar } = req.params
+    req.getRules = async () => {
+      const rules: Rule[] = await namespace.get(`${user}/${icalendar}`, "json")
+      return (rules || []).map((rule, idx) => ({ ...rule, id: idx }))
+    }
+    req.setRules = (newRules: Rule[]) =>
+      namespace.put(`${user}/${icalendar}`, JSON.stringify(newRules, null, 2))
+    req.parseBody = async () => JSON.parse((await req.text()).trim())
+    req.ParseError = new Response(
+      JSON.stringify({
+        error: "Passed json does not match format for Rule",
+      }),
+      {
+        status: 400,
+        headers,
+      }
+    )
+  }
+)
+
+// Get rules
+router.get(
+  "/social/user/:user/icalendar/:icalendar/rules",
+  async ({ getRules }: ExtendedRequest) => {
+    const rules = await getRules()
+    return new Response(JSON.stringify(rules, null, 2), {
+      headers,
+    })
+  }
+)
+
+// Update rule
+router.put(
+  "/social/user/:user/icalendar/:icalendar/rule",
+  async ({ parseBody, ParseError, getRules, setRules }: ExtendedRequest) => {
+    // parse body
+    const updateRule: Rule = await parseBody()
+    if (!isRule(updateRule)) {
+      return ParseError
+    }
+    const rules = await getRules()
+    const newRules = rules.map((rule) =>
+      rule.id == updateRule.id ? updateRule : rule
+    )
+    await setRules(newRules)
+    return new Response(JSON.stringify(newRules || [], null, 2), {
+      headers,
+    })
+  }
+)
+
+// Add new rule
+router.post(
+  "/social/user/:user/icalendar/:icalendar/rule",
+  async ({ parseBody, ParseError, getRules, setRules }: ExtendedRequest) => {
+    // parse body
+    const newRule: Rule = await parseBody()
+    if (!isRule(newRule)) {
+      return ParseError
+    }
+    const rules = await getRules()
+    const newRules = [...rules, newRule]
+    await setRules(newRules)
+    return new Response(JSON.stringify(newRules, null, 2), {
+      headers,
+    })
+  }
+)
+
+// Delete rule
+router.delete(
+  "/social/user/:user/icalendar/:icalendar/rule",
+  async ({ parseBody, ParseError, getRules, setRules }: ExtendedRequest) => {
+    // parse body
+    const deleteRule: Rule = await parseBody()
+    if (!isRule(deleteRule)) {
+      return ParseError
+    }
+    const rules = await getRules()
+    const newRules = rules.filter((rule) => rule.id != deleteRule.id)
+    await setRules(newRules)
+    return new Response(JSON.stringify(newRules, null, 2), {
+      headers,
+    })
+  }
+)
+
+// Get ical calendar file for user
 router.get(
   "/social/user/:user/icalendar/:icalendar",
   async (
@@ -54,56 +154,7 @@ router.get(
   }
 )
 
-router.get(
-  "/social/user/:user/icalendar/:icalendar/rules",
-  async (
-    { params: { user, icalendar } },
-    { CALENDAR }: { CALENDAR: KVNamespace }
-  ) => {
-    let rules: Rule[] = await CALENDAR.get(`${user}/${icalendar}`, "json")
-    return new Response(JSON.stringify(rules.filter(Boolean) || [], null, 2), {
-      headers,
-    })
-  }
-)
-
-router.post(
-  "/social/user/:user/icalendar/:icalendar/rules",
-  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {
-    const {
-      params: { user, icalendar },
-    } = req
-    try {
-      const content: string = await req.text()
-      const rules: Rule[] = JSON.parse(content.trim()).filter(
-        (obj?: Rule) => isRule(obj) // is not null, undefined or object
-      )
-      await CALENDAR.put(`${user}/${icalendar}`, JSON.stringify(rules, null, 2))
-      return new Response("", { headers })
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        console.error(error)
-      } else {
-        throw error
-      }
-    }
-    return new Response(
-      JSON.stringify({
-        error: "Passed json does not match format for Rule",
-      }),
-      {
-        status: 400,
-        headers,
-      }
-    )
-  }
-)
-
-router.get(
-  "/calendar.ics",
-  async (req, { CALENDAR }: { CALENDAR: KVNamespace }) => {}
-)
-
+// 404 page on invalid requests
 router.all(
   "*",
   () =>
