@@ -106,7 +106,10 @@ router.delete(
       return ParseError
     }
     const rules = await getRules()
-    const newRules = rules.filter((rule) => rule.id != deleteRule.id)
+    const newRules = rules
+      .filter((rule) => rule.id != deleteRule.id)
+      // recalculate index
+      .map((rule, idx) => ({ ...rule, id: idx }))
     await setRules(newRules)
     return new Response(JSON.stringify(newRules, null, 2), {
       headers,
