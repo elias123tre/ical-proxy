@@ -5,7 +5,7 @@ import { filterCalendar, filterEvent, isRule } from "./util"
 const headers = {
   "content-type": "application/json;charset=UTF-8",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,PUT,POST,DELETE",
   "Access-Control-Max-Age": "86400",
 }
 const router = Router<ExtendedRequest, IHTTPMethods>()
