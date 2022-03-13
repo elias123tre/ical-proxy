@@ -120,33 +120,11 @@ router.delete(
 // Get ical calendar file for user
 router.get(
   "/social/user/:user/icalendar/:icalendar",
-  async (
-    { params: { user, icalendar }, url },
-    { CALENDAR }: { CALENDAR: KVNamespace }
-  ) => {
-    let rules: Rule[] =
-      (await CALENDAR.get(`${user}/${icalendar}`, "json")) || []
-
-    // filter to only enabled rules
-    rules = rules.filter((rule) => rule.enabled)
-    // sort such that show rules are handled first
-    rules.sort((a, b) => {
-      if (a.type == b.type) {
-        return 0
-      }
-      // show should come first
-      if (a.type == "show" && b.type == "hide") {
-        return -1
-      }
-      // hide should come last
-      if (a.type == "hide" && b.type == "show") {
-        return 1
-      }
-    })
-    console.log(JSON.stringify(rules, null, 2))
+  async ({ getRules, url }: ExtendedRequest) => {
+    let rules = await getRules()
 
     const comp = await filterCalendar(
-      `social/user/${user}/icalendar/${icalendar}`,
+      new URL(url).pathname.replace(/^\//, ""), // pathname of calendar without leading slash
       (event) => filterEvent(rules, event)
     )
 

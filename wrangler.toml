@@ -6,5 +6,5 @@ account_id = "8cb9b7b2abc294c9b9c47e84aff48ab1"
 [[kv_namespaces]]
 binding = "CALENDAR"
 id = "4213b1109ca64ed195dc112560795bc9"
-preview_id = "7c178c4d0abd49479c7c715ff1b03afd"
+preview_id = "4213b1109ca64ed195dc112560795bc9"
 

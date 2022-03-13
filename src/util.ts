@@ -9,26 +9,58 @@ export function isRule(rule: any): rule is Rule {
   return false
 }
 
+// return true -> event should be included
 export function filterEvent(rules: Rule[], event: ICAL.Event) {
-  // return true -> event
-  return !rules
+  // filter to only enabled rules
+  rules = rules.filter((rule) => rule.enabled)
+  // sort such that show rules are handled first
+  rules.sort((a, b) => {
+    if (a.type == b.type) {
+      return 0
+    }
+    // show should come first
+    if (a.type == "show" && b.type == "hide") {
+      return -1
+    }
+    // hide should come last
+    if (a.type == "hide" && b.type == "show") {
+      return 1
+    }
+  })
+
+  let firstMatched: Rule
+  const anyRuleMatches = rules
     // if any rule matches
     .some((rule) => {
-      // if all filters match
-      let allMatches = rule.filters.every((filter) => {
+      const testFilter = (filter: Filter) => {
         // if matches filter regex rule
         let matches = RegExp(filter.regex).test(event[filter.property])
         return filter.negated ? !matches : matches
-      })
+      }
 
-      if (rule.type == "show") {
-        // should force-keep filter matches ->
-      } else if (rule.type == "hide") {
-        // should filter out filter matches
+      const isMatched =
+        rule.combine == "AND"
+          ? rule.filters.every(testFilter)
+          : rule.filters.some(testFilter)
+
+      if (isMatched) {
+        firstMatched = rule
+        return true
       }
       // default: no match (keep event)
       return false
     })
+  if (anyRuleMatches) {
+    if (firstMatched.type == "show") {
+      // should force-keep filter matches
+      return true
+    } else if (firstMatched.type == "hide") {
+      // should filter out filter matches
+      return false
+    }
+  }
+  // include by default (if no filter matches)
+  return true
 }
 
 /**
