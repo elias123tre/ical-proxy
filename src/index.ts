@@ -1,12 +1,13 @@
 import { Router, IHTTPMethods, Request } from "itty-router"
 
-import { filterCalendar, filterEvent, isRule } from "./util"
+import { filterCalendar, filterEvent, handleOptions, isRule } from "./util"
 
 const headers = {
   "content-type": "application/json;charset=UTF-8",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,PUT,POST,DELETE",
+  "Access-Control-Allow-Methods": "GET,PUT,POST,DELETE,HEAD,OPTIONS",
   "Access-Control-Max-Age": "86400",
+  Vary: "Origin",
 }
 const router = Router<ExtendedRequest, IHTTPMethods>()
 
@@ -40,6 +41,10 @@ router.all(
       }
     )
   }
+)
+
+router.options("/social/user/:user/icalendar/:icalendar*", (request) =>
+  handleOptions(request, headers)
 )
 
 // Get rules
