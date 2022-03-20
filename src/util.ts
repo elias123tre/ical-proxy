@@ -9,6 +9,15 @@ export function isRule(rule: any): rule is Rule {
   return false
 }
 
+export function isHideShowRule(rule: any): rule is HideShowRule {
+  if (rule && typeof rule === "object") {
+    if (Object.keys(rule).length > 0) {
+      return true
+    }
+  }
+  return false
+}
+
 // return true -> event should be included
 export function filterEvent(rules: Rule[], event: ICAL.Event) {
   // filter to only enabled rules
@@ -122,7 +131,7 @@ export function handleOptions(request: any, corsHeaders: any) {
     return new Response(null, {
       headers: {
         ...corsHeaders,
-        Allow: "GET,PUT,POST,DELETE,HEAD,OPTIONS",
+        Allow: "GET, PUT, POST, DELETE, HEAD, OPTIONS",
       },
     })
   }

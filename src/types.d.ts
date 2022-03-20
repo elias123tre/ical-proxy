@@ -12,3 +12,9 @@ interface Filter {
   regex: string
   negated: boolean
 }
+
+interface HideShowRule {
+  id: number
+  url: string
+  type: "hide" | "show"
+}
