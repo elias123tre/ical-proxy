@@ -1,4 +1,33 @@
 import ICAL, { Component } from "ical.js"
+import { ExtendedRequest } from "."
+
+export async function filterFromRules(
+  getRules: ExtendedRequest["getRules"],
+  getHideShowRules: ExtendedRequest["getHideShowRules"],
+  url: string
+) {
+  const eventInRuleList = (event: ICAL.Event, list: HideShowRule[]) =>
+    list.some((rule) => event["description"].includes(rule.url))
+
+  const rules = await getRules()
+  const urlrules = (await getHideShowRules()).filter((rule) => rule.url) // filter not empty urls
+  const showrules = urlrules.filter((rule) => rule.type == "show")
+  const hiderules = urlrules.filter((rule) => rule.type == "hide")
+
+  const comp = await filterCalendar(
+    new URL(url).pathname.replace(/^\//, ""),
+    (event) => {
+      if (eventInRuleList(event, showrules)) {
+        return true
+      } else if (eventInRuleList(event, hiderules)) {
+        return false
+      } else {
+        return filterEvent(rules, event)
+      }
+    }
+  )
+  return comp
+}
 
 export function isRule(rule: any): rule is Rule {
   if (rule && typeof rule === "object") {

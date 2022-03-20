@@ -1,13 +1,7 @@
-import { Event } from "ical.js"
+import ICAL from "ical.js"
 import { Router, IHTTPMethods, Request } from "itty-router"
 
-import {
-  filterCalendar,
-  filterEvent,
-  handleOptions,
-  isHideShowRule,
-  isRule,
-} from "./util"
+import { filterFromRules, handleOptions, isHideShowRule, isRule } from "./util"
 
 const headers = {
   "content-type": "application/json;charset=UTF-8",
@@ -18,7 +12,7 @@ const headers = {
 }
 const router = Router<ExtendedRequest, IHTTPMethods>()
 
-type ExtendedRequest = Request & {
+export type ExtendedRequest = Request & {
   getHideShowRules: () => Promise<HideShowRule[]>
   setHideShowRules: (newRules: HideShowRule[]) => Promise<void>
   getRules: () => Promise<Rule[]>
@@ -210,30 +204,53 @@ router.delete(
   }
 )
 
+// Get preview of events
+router.get(
+  "/social/user/:user/icalendar/:icalendar/preview",
+  async ({ getRules, getHideShowRules, url }: ExtendedRequest) => {
+    const comp = await filterFromRules(
+      getRules,
+      getHideShowRules,
+      url.replace(/\/preview$/, "")
+    )
+    let events = comp
+      .getAllSubcomponents("vevent")
+      .map((e) => new ICAL.Event(e))
+    let weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    let weekAhead = new Date()
+    weekAhead.setDate(weekAhead.getDate() + 7)
+    // filter to show events from past, current, next week
+    let filtered = events.filter((event) => {
+      let dt = event.startDate.toJSDate()
+      return weekAgo < dt && dt < weekAhead
+    })
+    filtered.sort((a, b) => a.startDate.toUnixTime() - b.startDate.toUnixTime())
+
+    const objects = filtered.map((e) => ({
+      summary: e.summary,
+      description: e.description,
+      location: e.location,
+      startDate: e.startDate.toJSDate().toJSON(),
+      endDate: e.endDate.toJSDate().toJSON(),
+      url: e.description
+        .match(
+          /\bhttps?:\/\/(?:www\.)?kth.se\/social\/([\w-]+\/)+event\/[\w-]+\/?\b/g
+        )
+        .slice(-1)[0],
+    }))
+
+    return new Response(JSON.stringify(objects, null, 2), {
+      headers,
+    })
+  }
+)
+
 // Get ical calendar file for user
 router.get(
   "/social/user/:user/icalendar/:icalendar",
   async ({ getRules, getHideShowRules, url }: ExtendedRequest) => {
-    const eventInRuleList = (event: Event, list: HideShowRule[]) =>
-      list.some((rule) => event["description"].includes(rule.url))
-
-    const rules = await getRules()
-    const urlrules = (await getHideShowRules()).filter((rule) => rule.url) // filter not empty urls
-    const showrules = urlrules.filter((rule) => rule.type == "show")
-    const hiderules = urlrules.filter((rule) => rule.type == "hide")
-
-    const comp = await filterCalendar(
-      new URL(url).pathname.replace(/^\//, ""), // pathname of calendar without leading slash
-      (event) => {
-        if (eventInRuleList(event, showrules)) {
-          return true
-        } else if (eventInRuleList(event, hiderules)) {
-          return false
-        } else {
-          return filterEvent(rules, event)
-        }
-      }
-    )
+    const comp = await filterFromRules(getRules, getHideShowRules, url)
 
     return new Response(comp.toString(), {
       headers: {
