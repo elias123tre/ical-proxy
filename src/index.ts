@@ -233,11 +233,12 @@ router.get(
       location: e.location,
       startDate: e.startDate.toJSDate().toJSON(),
       endDate: e.endDate.toJSDate().toJSON(),
-      url: e.description
-        .match(
-          /\bhttps?:\/\/(?:www\.)?kth.se\/social\/([\w-]+\/)+event\/[\w-]+\/?\b/g
-        )
-        .slice(-1)[0],
+      url:
+        e.description
+          .match(
+            /\bhttps?:\/\/(?:www\.)?kth.se\/social\/([\w-]+\/)+event\/[\w-]+\/?\b/g
+          )
+          .slice(-1)[0] || null,
     }))
 
     return new Response(JSON.stringify(objects, null, 2), {
