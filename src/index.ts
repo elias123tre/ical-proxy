@@ -1,5 +1,5 @@
 import ICAL from "ical.js"
-import { Router, IHTTPMethods, Request } from "itty-router"
+import itty, { IHTTPMethods, Request } from "itty-router"
 
 import { filterFromRules, handleOptions, isHideShowRule, isRule } from "./util"
 
@@ -10,9 +10,11 @@ const headers = {
   "Access-Control-Max-Age": "86400",
   Vary: "Origin",
 }
-const router = Router<ExtendedRequest, IHTTPMethods>()
+const router = itty.Router<ExtendedRequest, IHTTPMethods>()
 
 export type ExtendedRequest = Request & {
+  registerHit: () => Promise<void>
+  getHits: () => Promise<number>
   getHideShowRules: () => Promise<HideShowRule[]>
   setHideShowRules: (newRules: HideShowRule[]) => Promise<void>
   getRules: () => Promise<Rule[]>
@@ -25,26 +27,35 @@ export type ExtendedRequest = Request & {
 router.all(
   "/social/user/:user/icalendar/:icalendar*",
   (req: ExtendedRequest, env) => {
-    const namespace = env.CALENDAR
+    const namespace: KVNamespace = env.CALENDAR
     const { user, icalendar } = req.params
+    const basePath = `${user}/${icalendar}`
+    req.registerHit = async () => {
+      let hits = await req.getHits()
+      return namespace.put(`${basePath}/hits`, `${hits + 1}`)
+    }
+    req.getHits = async () => {
+      const strHits = await namespace.get(`${basePath}/hits`)
+      return parseInt(strHits, 10) || 0
+    }
     req.getHideShowRules = async () => {
       const rules: HideShowRule[] = await namespace.get(
-        `${user}/${icalendar}/hideshowrules`,
+        `${basePath}/hideshowrules`,
         "json"
       )
       return (rules || []).map((rule, idx) => ({ ...rule, id: idx }))
     }
     req.setHideShowRules = async (newRules) =>
       namespace.put(
-        `${user}/${icalendar}/hideshowrules`,
+        `${basePath}/hideshowrules`,
         JSON.stringify(newRules, null, 2)
       )
     req.getRules = async () => {
-      const rules: Rule[] = await namespace.get(`${user}/${icalendar}`, "json")
+      const rules: Rule[] = await namespace.get(`${basePath}`, "json")
       return (rules || []).map((rule, idx) => ({ ...rule, id: idx }))
     }
     req.setRules = (newRules: Rule[]) =>
-      namespace.put(`${user}/${icalendar}`, JSON.stringify(newRules, null, 2))
+      namespace.put(`${basePath}`, JSON.stringify(newRules, null, 2))
     req.parseBody = async () => JSON.parse((await req.text()).trim())
     req.ParseError = new Response(
       JSON.stringify({
@@ -60,6 +71,17 @@ router.all(
 
 router.options("/social/user/:user/icalendar/:icalendar*", (request) =>
   handleOptions(request, headers)
+)
+
+// Get hits for proxied url
+router.get(
+  "/social/user/:user/icalendar/:icalendar/hits",
+  async ({ getHits }: ExtendedRequest) => {
+    const hits = await getHits()
+    return new Response(JSON.stringify({ hits }, null, 2), {
+      headers,
+    })
+  }
 )
 
 // Get url rules
@@ -250,10 +272,10 @@ router.get(
 // Get ical calendar file for user
 router.get(
   "/social/user/:user/icalendar/:icalendar",
-  async ({ getRules, getHideShowRules, url }: ExtendedRequest) => {
+  async ({ registerHit, getRules, getHideShowRules, url }: ExtendedRequest) => {
     const comp = await filterFromRules(getRules, getHideShowRules, url)
 
-    return new Response(comp.toString(), {
+    const resp = new Response(comp.toString(), {
       headers: {
         ...headers,
         "content-type": "text/calendar; charset=utf-8",
@@ -262,6 +284,8 @@ router.get(
         "cache-control": "max-age=10800, private",
       },
     })
+    await registerHit()
+    return resp
   }
 )
 
@@ -283,6 +307,9 @@ const errorHandler = (error: Error & { status?: any }) => {
 }
 
 export default {
-  fetch: (req: ExtendedRequest, ...args: any) =>
-    router.handle(req, ...args).catch(errorHandler),
+  fetch: (
+    req: ExtendedRequest,
+    requestInitr?: globalThis.Request | RequestInit,
+    ...args: any
+  ) => router.handle(req, requestInitr, ...args).catch(errorHandler),
 }
