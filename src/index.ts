@@ -14,7 +14,7 @@ const router = itty.Router<ExtendedRequest, IHTTPMethods>()
 
 export type ExtendedRequest = Request & {
   registerHit: () => Promise<void>
-  getHits: () => Promise<number>
+  getHits: () => Promise<{ hits: number; latestHit: Date }>
   getHideShowRules: () => Promise<HideShowRule[]>
   setHideShowRules: (newRules: HideShowRule[]) => Promise<void>
   getRules: () => Promise<Rule[]>
@@ -31,12 +31,17 @@ router.all(
     const { user, icalendar } = req.params
     const basePath = `${user}/${icalendar}`
     req.registerHit = async () => {
-      let hits = await req.getHits()
-      return namespace.put(`${basePath}/hits`, `${hits + 1}`)
+      const { hits } = await req.getHits()
+      await namespace.put(`${basePath}/hits`, `${hits + 1}`)
+      await namespace.put(`${basePath}/hits/latest`, new Date().toJSON())
     }
     req.getHits = async () => {
       const strHits = await namespace.get(`${basePath}/hits`)
-      return parseInt(strHits, 10) || 0
+      const strLatest = await namespace.get(`${basePath}/hits/latest`)
+      return {
+        hits: parseInt(strHits, 10) || 0,
+        latestHit: strLatest ? new Date(strLatest) : null,
+      }
     }
     req.getHideShowRules = async () => {
       const rules: HideShowRule[] = await namespace.get(
