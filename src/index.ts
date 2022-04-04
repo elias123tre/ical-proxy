@@ -243,18 +243,9 @@ router.get(
     let events = comp
       .getAllSubcomponents("vevent")
       .map((e) => new ICAL.Event(e))
-    let weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    let weekAhead = new Date()
-    weekAhead.setDate(weekAhead.getDate() + 7)
-    // filter to show events from past, current, next week
-    let filtered = events.filter((event) => {
-      let dt = event.startDate.toJSDate()
-      return weekAgo < dt && dt < weekAhead
-    })
-    filtered.sort((a, b) => a.startDate.toUnixTime() - b.startDate.toUnixTime())
+    events.sort((a, b) => a.startDate.toUnixTime() - b.startDate.toUnixTime())
 
-    const objects = filtered.map((e) => ({
+    const objects = events.map((e) => ({
       summary: e.summary,
       description: e.description,
       location: e.location,
