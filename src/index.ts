@@ -83,7 +83,7 @@ router.get(
   "/social/user/:user/icalendar/:icalendar/hits",
   async ({ getHits }: ExtendedRequest) => {
     const hits = await getHits()
-    return new Response(JSON.stringify({ hits }, null, 2), {
+    return new Response(JSON.stringify(hits, null, 2), {
       headers,
     })
   }
