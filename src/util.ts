@@ -1,6 +1,48 @@
 import ICAL, { Component } from "ical.js"
 import { ExtendedRequest } from "."
 
+let colors = [
+  "darkkhaki",
+  "lightpink",
+  "springgreen",
+  "firebrick",
+  "yellow",
+  "chocolate",
+  "darkblue",
+  "orchid",
+  "royalblue",
+  "peru",
+  "violet",
+  "olive",
+  "goldenrod",
+  "black",
+  "brown",
+  "white",
+  "lime",
+  "palevioletred",
+  "thistle",
+  "peachpuff",
+  "hotpink",
+  "seagreen",
+  "antiquewhite",
+  "gainsboro",
+  "slateblue",
+]
+let courseColors: { [key: string]: string } = {}
+
+export function colorFromCourseCode(courseCode: string) {
+  const color = courseColors[courseCode]
+  if (color) {
+    return color
+  }
+  const newColor = colors.shift()
+  if (!newColor) {
+    return "gray"
+  }
+  courseColors[courseCode] = newColor
+  return newColor
+}
+
 export async function filterFromRules(
   getRules: ExtendedRequest["getRules"],
   getHideShowRules: ExtendedRequest["getHideShowRules"],
@@ -125,6 +167,18 @@ export async function filterCalendar(
     .filter(predicate)
   comp.removeAllSubcomponents("vevent")
   for (const event of events) {
+    // Set event color from course code
+    let courseCode =
+      event.summary
+        // Extract course code from last occuring parenthesis
+        ?.match(/\(((?:\w{2}\d{4})|(?:[\w\d]{2,}[ ,\wåäöÅÄÖ\d]*))\)/gi)
+        ?.pop()
+        ?.replace(/[\(\)]/g, "") || null
+    event.component.addPropertyWithValue(
+      "COLOR",
+      colorFromCourseCode(courseCode)
+    )
+
     comp.addSubcomponent(event.component)
   }
   return comp
