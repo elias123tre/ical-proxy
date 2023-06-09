@@ -1,5 +1,12 @@
 import { Router } from "itty-router"
-import { extractUrl, filterCalendar, hiddenEventsPath } from "./util"
+import {
+  extractCourseCode,
+  extractMandatory,
+  extractUrl,
+  filterCalendar,
+  hiddenEventsPath,
+  lastUpdatedPath,
+} from "./util"
 import ICAL from "ical.js"
 
 export interface Env {
@@ -38,7 +45,12 @@ router.get(
         return true
       }
     )
-
+    
+    const lastUpdated = new Date().toJSON()
+    await namespace.put(
+      lastUpdatedPath(params.user, params.icalendar),
+      lastUpdated
+    )
     const resp = new Response(comp.toString(), {
       headers: {
         ...headers,
@@ -49,6 +61,26 @@ router.get(
       },
     })
     return resp
+  }
+)
+
+// Get last updated time
+router.get(
+  "/social/user/:user/icalendar/:icalendar/last-updated",
+  async ({ params }, env: Env) => {
+    const namespace = env.CALENDAR
+    const lastUpdated = await namespace.get(
+      lastUpdatedPath(params.user, params.icalendar),
+      "text"
+    )
+    return new Response(
+      JSON.stringify({
+        lastUpdated,
+      }),
+      {
+        headers,
+      }
+    )
   }
 )
 
@@ -70,6 +102,7 @@ router.get(
 
     const start = new Date(params.start)
     const end = new Date(params.end)
+    end.setDate(end.getDate() + 1) // add one day to include events on the end date
 
     events = events.filter((event) => {
       const eventStart = event.startDate.toJSDate()
@@ -82,6 +115,8 @@ router.get(
 
     const objects = events.map((event) => {
       const url = extractUrl(event.description)
+      const courseCode = extractCourseCode(event.summary)
+      const mandatory = extractMandatory(event.summary)
       return {
         summary: event.summary,
         description: event.description.trim(),
@@ -90,6 +125,8 @@ router.get(
         endDate: event.endDate.toJSDate().toJSON(),
         hidden: url ? hiddenEvents.includes(url) : false,
         url,
+        courseCode,
+        mandatory,
       }
     })
 
@@ -101,25 +138,12 @@ router.get(
 
 // Hide event
 router.post(
-  "/social/user/:user/icalendar/:icalendar/hide/:id",
+  "/social/user/:user/icalendar/:icalendar/hide/:id+",
   async ({ params }, env: Env) => {
     const namespace = env.CALENDAR
     const path = hiddenEventsPath(params.user, params.icalendar)
     const id = decodeURIComponent(params.id)
     const hiddenEvents = (await namespace.get<string[]>(path, "json")) || []
-
-    const url = extractUrl(params.id)
-    if (!url) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          hiddenEvents,
-        }),
-        {
-          headers,
-        }
-      )
-    }
 
     // add new id and remove duplicates with set
     const newHiddenEvents = [...new Set([...hiddenEvents, id])]
@@ -139,25 +163,12 @@ router.post(
 
 // Show event
 router.post(
-  "/social/user/:user/icalendar/:icalendar/show/:id",
+  "/social/user/:user/icalendar/:icalendar/show/:id+",
   async ({ params }, env: Env) => {
     const namespace = env.CALENDAR
     const path = hiddenEventsPath(params.user, params.icalendar)
     const id = decodeURIComponent(params.id)
     const hiddenEvents = (await namespace.get<string[]>(path, "json")) || []
-
-    const url = extractUrl(params.id)
-    if (!url) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          hiddenEvents,
-        }),
-        {
-          headers,
-        }
-      )
-    }
 
     // remove id
     const newHiddenEvents = hiddenEvents.filter((e) => e !== id)

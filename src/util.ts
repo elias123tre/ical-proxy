@@ -7,8 +7,25 @@ export function extractUrl(description: string) {
   return match?.[match.length - 1] || null
 }
 
+export function extractCourseCode(summary: string) {
+  // Extract course code from last occuring parenthesis
+  const match = summary.match(
+    /\(((?:\w{2}\d{4})|(?:[\w\d]{2,}[ ,\wåäöÅÄÖ\d]*))\)/gi
+  )
+  return match?.[match.length - 1]?.replace(/[\(\)]/g, "") || null
+}
+
+export function extractMandatory(summary: string) {
+  return new RegExp(/^\s*\*\s*/).test(summary)
+}
+
 export function hiddenEventsPath(user: string, icalendar: string) {
   return `${user}/${icalendar}/hidden`
+}
+
+// path for the last date the calendar was refreshed
+export function lastUpdatedPath(user: string, icalendar: string) {
+  return `${user}/${icalendar}/lastUpdated`
 }
 
 /**
